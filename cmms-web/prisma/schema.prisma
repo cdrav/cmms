@@ -1,0 +1,468 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // Piloto on-premise: SQLite (un solo archivo, sin servicio de BD que mantener).
+  // Para producción multi-usuario a mayor escala, cambiar a "postgresql" y DATABASE_URL.
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  TECHNICIAN
+}
+
+enum AssetStatus {
+  OPERATIONAL
+  DOWN
+  IN_MAINTENANCE
+}
+
+enum Criticality {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum WorkOrderType {
+  CORRECTIVE
+  PREVENTIVE
+  EMERGENCY
+  INSPECTION
+}
+
+enum WorkOrderStatus {
+  REQUESTED
+  IN_PROGRESS
+  WAITING_PARTS
+  COMPLETED
+  CLOSED
+  REJECTED
+}
+
+enum InventoryTxType {
+  IN
+  OUT
+  ADJUSTMENT
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+}
+
+enum PurchaseRequestStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  ORDERED
+  RECEIVED
+}
+
+enum SignatureRole {
+  DELIVERED_BY
+  RECEIVED_BY
+}
+
+enum AdverseEventDocumentType {
+  CEDULA
+  TARJETA_IDENTIDAD
+  REGISTRO_CIVIL
+  PASAPORTE
+  HISTORIA_CLINICA
+}
+
+enum AdverseEventSex {
+  FEMENINO
+  MASCULINO
+  SIN_DATO
+}
+
+enum AdverseEventAgeUnit {
+  SEMANAS
+  MESES
+  ANIOS
+}
+
+enum AdverseEventTiming {
+  ANTES_DEL_USO
+  DURANTE_EL_USO
+  DESPUES_DEL_USO
+}
+
+enum AdverseEventType {
+  EVENTO_ADVERSO_SERIO
+  EVENTO_ADVERSO_NO_SERIO
+  INCIDENTE_ADVERSO_SERIO
+  INCIDENTE_ADVERSO_NO_SERIO
+}
+
+enum AdverseEventOutcome {
+  MURIO
+  OTRO
+}
+
+enum AdverseEventCause {
+  USO_ANORMAL
+  FALLA_ALARMA
+  HARDWARE_COMPUTADOR
+  FALSO_NEGATIVO
+  FALSO_POSITIVO
+  RESULTADO_FALSO_PRUEBA
+  FALLA_DISPOSITIVO_IMPLANTABLE
+  AMBIENTE_INAPROPIADO
+  INCOMPATIBILIDAD
+  INSTRUCCIONES_USO_ETIQUETADO
+  MANTENIMIENTO
+  MATERIAL
+  EMPAQUE
+  SOFTWARE
+  CONDICIONES_ALMACENAMIENTO
+  ENTRENAMIENTO
+  TRANSPORTE_ENTREGA
+  CAPACIDAD_USO
+  ERROR_USO
+  DESGASTE
+  NO_RELACIONADO_DISPOSITIVO
+  SIN_IDENTIFICAR
+  OTROS
+}
+
+enum AdverseEventStatus {
+  ABIERTO
+  EN_SEGUIMIENTO
+  CERRADO
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  requestedWorkOrders WorkOrder[]          @relation("RequestedBy")
+  assignedWorkOrders  WorkOrder[]          @relation("AssignedTo")
+  statusChanges       WorkOrderStatusLog[] @relation("ChangedBy")
+  inventoryTx         InventoryTransaction[] @relation("PerformedBy")
+  calibrationsLogged  CalibrationRecord[]  @relation("CalibrationCreatedBy")
+  attachmentsUploaded Attachment[]         @relation("UploadedBy")
+  adverseEventsLogged AdverseEventCase[]   @relation("AdverseEventCreatedBy")
+  tasksCreated        Task[]               @relation("TaskCreatedBy")
+  tasksAssigned       Task[]               @relation("TaskAssignedTo")
+  purchaseRequestsMade     PurchaseRequest[] @relation("PurchaseRequestedBy")
+  purchaseRequestsReviewed PurchaseRequest[] @relation("PurchaseReviewedBy")
+}
+
+model Asset {
+  id                String      @id @default(cuid())
+  code              String      @unique
+  name              String
+  category          String?
+  location          String?
+  manufacturer      String?
+  model             String?
+  serialNumber      String?
+  parentId          String?
+  parent            Asset?      @relation("AssetHierarchy", fields: [parentId], references: [id])
+  children          Asset[]     @relation("AssetHierarchy")
+  criticality       Criticality @default(MEDIUM)
+  status            AssetStatus @default(OPERATIONAL)
+  purchaseDate      DateTime?
+  purchaseCost      Float?
+  warrantyExpiresAt DateTime?
+  notes             String?
+
+  // Calibración metrológica: distinta del mantenimiento preventivo general,
+  // suele exigirla la normativa y a menudo la realiza un laboratorio externo acreditado.
+  calibrationFrequencyDays Int?
+  nextCalibrationAt        DateTime?
+  lastCalibratedAt         DateTime?
+
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  pmSchedules        PmSchedule[]
+  workOrders         WorkOrder[]
+  calibrationRecords CalibrationRecord[]
+  attachments        Attachment[]
+  adverseEvents      AdverseEventCase[]
+}
+
+model CalibrationRecord {
+  id          String   @id @default(cuid())
+  assetId     String
+  asset       Asset    @relation(fields: [assetId], references: [id])
+  performedAt DateTime
+  performedBy String // técnico interno o laboratorio externo que certificó
+  notes       String?
+  createdById String
+  createdBy   User     @relation("CalibrationCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  attachments Attachment[]
+}
+
+model Attachment {
+  id           String   @id @default(cuid())
+  filename     String // nombre en disco (storage/uploads/<filename>)
+  originalName String
+  mimeType     String
+  sizeBytes    Int
+  documentType String? // ej: Manual de Usuario, Factura, Registro Sanitario, Acta de Entrega, Contrato
+
+  assetId             String?
+  asset               Asset?              @relation(fields: [assetId], references: [id])
+  workOrderId         String?
+  workOrder           WorkOrder?          @relation(fields: [workOrderId], references: [id])
+  calibrationRecordId String?
+  calibrationRecord   CalibrationRecord?  @relation(fields: [calibrationRecordId], references: [id])
+
+  uploadedById String
+  uploadedBy   User     @relation("UploadedBy", fields: [uploadedById], references: [id])
+  uploadedAt   DateTime @default(now())
+}
+
+model PmSchedule {
+  id               String   @id @default(cuid())
+  assetId          String
+  asset            Asset    @relation(fields: [assetId], references: [id])
+  title            String
+  description      String?
+  frequencyDays    Int
+  nextDueAt        DateTime
+  lastGeneratedAt  DateTime?
+  active           Boolean  @default(true)
+  estimatedHours   Float?
+  instructions     String?
+  createdAt        DateTime @default(now())
+
+  workOrders WorkOrder[]
+}
+
+model WorkOrder {
+  id             String          @id @default(cuid())
+  code           String          @unique
+  assetId        String
+  asset          Asset           @relation(fields: [assetId], references: [id])
+  pmScheduleId   String?
+  pmSchedule     PmSchedule?     @relation(fields: [pmScheduleId], references: [id])
+  type           WorkOrderType
+  priority       Criticality     @default(MEDIUM)
+  status         WorkOrderStatus @default(REQUESTED)
+  description    String
+  failureCode    String?
+  actionTaken    String?
+  laborHours     Float?
+  downtimeMinutes Int?
+
+  requestedById  String
+  requestedBy    User            @relation("RequestedBy", fields: [requestedById], references: [id])
+  assignedToId   String?
+  assignedTo     User?           @relation("AssignedTo", fields: [assignedToId], references: [id])
+
+  requestedAt    DateTime        @default(now())
+  startedAt      DateTime?
+  completedAt    DateTime?
+  closedAt       DateTime?
+
+  statusLogs      WorkOrderStatusLog[]
+  parts           WorkOrderPart[]
+  attachments     Attachment[]
+  checklistItems  WorkOrderChecklistItem[]
+  measurements    WorkOrderMeasurement[]
+  signatures      WorkOrderSignature[]
+}
+
+model WorkOrderChecklistItem {
+  id          String    @id @default(cuid())
+  workOrderId String
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id])
+  label       String
+  completed   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+}
+
+model WorkOrderMeasurement {
+  id             String    @id @default(cuid())
+  workOrderId    String
+  workOrder      WorkOrder @relation(fields: [workOrderId], references: [id])
+  variable       String // ej: Temperatura, Flujo, Frecuencia
+  unit           String?
+  referenceValue Float?
+  measuredValue  Float?
+  createdAt      DateTime  @default(now())
+}
+
+model WorkOrderSignature {
+  id          String        @id @default(cuid())
+  workOrderId String
+  workOrder   WorkOrder     @relation(fields: [workOrderId], references: [id])
+  role        SignatureRole // quién entrega el trabajo vs. quién lo recibe conforme
+  signerName  String
+  signerRole  String // cargo del firmante (ej. "Jefe de Enfermería", "Técnico de mantenimiento")
+  imageDataUrl String       // PNG en base64 capturado del canvas de firma
+  signedAt    DateTime      @default(now())
+}
+
+model WorkOrderStatusLog {
+  id          String          @id @default(cuid())
+  workOrderId String
+  workOrder   WorkOrder       @relation(fields: [workOrderId], references: [id])
+  fromStatus  WorkOrderStatus?
+  toStatus    WorkOrderStatus
+  changedById String
+  changedBy   User            @relation("ChangedBy", fields: [changedById], references: [id])
+  changedAt   DateTime        @default(now())
+  comment     String?
+}
+
+model WorkOrderPart {
+  id               String    @id @default(cuid())
+  workOrderId      String
+  workOrder        WorkOrder @relation(fields: [workOrderId], references: [id])
+  inventoryItemId  String
+  inventoryItem    InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  quantityUsed     Float
+  unitCostSnapshot Float
+  createdAt        DateTime  @default(now())
+}
+
+model InventoryItem {
+  id              String   @id @default(cuid())
+  code            String   @unique
+  name            String
+  unit            String
+  quantityOnHand  Float    @default(0)
+  reorderPoint    Float    @default(0)
+  reorderQuantity Float    @default(0)
+  unitCost        Float    @default(0)
+  location        String?
+  createdAt       DateTime @default(now())
+
+  transactions InventoryTransaction[]
+  usedInWorkOrders WorkOrderPart[]
+  purchaseRequestItems PurchaseRequestItem[]
+}
+
+model Task {
+  id           String     @id @default(cuid())
+  title        String
+  description  String?
+  dueDate      DateTime?
+  status       TaskStatus @default(PENDING)
+  assignedToId String?
+  assignedTo   User?      @relation("TaskAssignedTo", fields: [assignedToId], references: [id])
+  createdById  String
+  createdBy    User       @relation("TaskCreatedBy", fields: [createdById], references: [id])
+  createdAt    DateTime   @default(now())
+  completedAt  DateTime?
+}
+
+model PurchaseRequest {
+  id            String                @id @default(cuid())
+  title         String
+  justification String?
+  status        PurchaseRequestStatus @default(REQUESTED)
+
+  requestedById String
+  requestedBy   User      @relation("PurchaseRequestedBy", fields: [requestedById], references: [id])
+  reviewedById  String?
+  reviewedBy    User?     @relation("PurchaseReviewedBy", fields: [reviewedById], references: [id])
+  reviewedAt    DateTime?
+  reviewComment String?
+
+  createdAt DateTime @default(now())
+  items     PurchaseRequestItem[]
+}
+
+model PurchaseRequestItem {
+  id                String          @id @default(cuid())
+  purchaseRequestId String
+  purchaseRequest   PurchaseRequest @relation(fields: [purchaseRequestId], references: [id])
+  description       String
+  quantity          Float
+  estimatedUnitCost Float?
+
+  // Si el ítem corresponde a un repuesto que ya existe en inventario (ej. solicitado
+  // desde una alerta de bajo stock), al marcar la solicitud como RECEIVED se le
+  // suma el stock automáticamente vía una InventoryTransaction.
+  inventoryItemId String?
+  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id])
+}
+
+model InventoryTransaction {
+  id              String          @id @default(cuid())
+  inventoryItemId String
+  inventoryItem   InventoryItem   @relation(fields: [inventoryItemId], references: [id])
+  type            InventoryTxType
+  quantity        Float
+  workOrderId     String?
+  performedById   String
+  performedBy     User            @relation("PerformedBy", fields: [performedById], references: [id])
+  occurredAt      DateTime        @default(now())
+  notes           String?
+}
+
+// Reporte de eventos/incidentes adversos de dispositivos médicos (tecnovigilancia).
+// Deliberadamente NO se guarda el nombre del paciente, solo datos demográficos
+// mínimos requeridos por este tipo de reporte regulatorio — revisar con el área
+// legal/de calidad del hospital antes de usarlo con casos reales.
+model AdverseEventCase {
+  id      String @id @default(cuid())
+  assetId String
+  asset   Asset  @relation(fields: [assetId], references: [id])
+
+  patientDocumentType AdverseEventDocumentType
+  patientSex          AdverseEventSex
+  patientAgeValue     Int?
+  patientAgeUnit      AdverseEventAgeUnit?
+
+  eventDate  DateTime
+  reportDate DateTime @default(now())
+  timing     AdverseEventTiming
+  eventType  AdverseEventType
+  outcome    AdverseEventOutcome?
+  outcomeOther String?
+
+  probableCauses String // lista de AdverseEventCause separados por coma
+  causeOther     String?
+
+  correctiveActionsInitiated Boolean @default(false)
+  reportedToDistributor      Boolean @default(false)
+  distributorReportDate      DateTime?
+  distributorSentDate        DateTime?
+  institutionalEmail         String?
+
+  description String?
+  status      AdverseEventStatus @default(ABIERTO)
+
+  createdById String
+  createdBy   User     @relation("AdverseEventCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Configuración institucional para las plantillas de PDF (logo y colores propios
+// del hospital). Un único registro fijo con id "default".
+model InstitutionSettings {
+  id              String   @id @default("default")
+  institutionName String   @default("")
+  taxId           String? // NIT / identificación tributaria
+  address         String?
+  phone           String?
+  email           String?
+  healthRegistryCode String? // ej. código REPS en Colombia, o el registro sanitario equivalente
+  siteName        String? // sede, si la institución tiene varias
+  logoDataUrl     String?
+  primaryColor    String   @default("#0f172a")
+  secondaryColor  String   @default("#2563eb")
+  updatedAt       DateTime @updatedAt
+}
