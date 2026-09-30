@@ -26,6 +26,12 @@ export async function loginAction(
   // para evitar que un enlace de login manipulado mande al usuario a un sitio externo.
   const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/";
 
-  await createSession({ userId: user.id, role: user.role, name: user.name });
+  await createSession({
+    userId: user.id,
+    role: user.role,
+    name: user.name,
+    organizationId: user.organizationId,
+    siteId: user.siteId || undefined,
+  });
   redirect(safeNext);
 }

@@ -10,7 +10,11 @@ export type Resource =
   | "adverseEvent"
   | "settings"
   | "task"
-  | "purchaseRequest";
+  | "purchaseRequest"
+  | "vendor"
+  | "contract"
+  | "warranty"
+  | "ticket";
 
 export type Action = "view" | "create" | "update" | "delete" | "manage";
 
@@ -18,15 +22,15 @@ export type Action = "view" | "create" | "update" | "delete" | "manage";
 // y cuáles puede al menos ver ("view"). Reemplaza a la gema CanCan del proyecto original
 // con una tabla explícita, fácil de auditar a simple vista.
 const MANAGE: Record<Role, Resource[]> = {
-  ADMIN: ["asset", "pmSchedule", "workOrder", "inventory", "user", "report", "adverseEvent", "settings", "task", "purchaseRequest"],
-  MANAGER: ["asset", "pmSchedule", "workOrder", "inventory", "report", "adverseEvent", "task", "purchaseRequest"],
+  ADMIN: ["asset", "pmSchedule", "workOrder", "inventory", "user", "report", "adverseEvent", "settings", "task", "purchaseRequest", "vendor", "contract", "warranty", "ticket"],
+  MANAGER: ["asset", "pmSchedule", "workOrder", "inventory", "report", "adverseEvent", "task", "purchaseRequest", "vendor", "contract", "warranty", "ticket"],
   TECHNICIAN: [],
 };
 
 const VIEW_ONLY: Record<Role, Resource[]> = {
   ADMIN: [],
   MANAGER: [],
-  TECHNICIAN: ["asset", "pmSchedule", "workOrder", "inventory", "report", "adverseEvent", "task", "purchaseRequest"],
+  TECHNICIAN: ["asset", "pmSchedule", "workOrder", "inventory", "report", "adverseEvent", "task", "purchaseRequest", "vendor", "contract", "warranty", "ticket"],
 };
 
 // Excepciones puntuales: acciones que un TECHNICIAN sí puede hacer aunque el

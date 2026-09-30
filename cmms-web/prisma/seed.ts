@@ -6,10 +6,44 @@ const db = new PrismaClient();
 async function main() {
   const passwordHash = await bcrypt.hash("Cambiar123!", 10);
 
+  // Crear organización por defecto para multi-tenant
+  const organization = await db.organization.upsert({
+    where: { taxId: "900123456-1" },
+    update: {},
+    create: {
+      name: "Hospital General Demo",
+      taxId: "900123456-1",
+      address: "Calle Principal #123",
+      phone: "+57 1 555-1234",
+      email: "contacto@hospitaldemo.local",
+      healthRegistryCode: "REPS-12345",
+      primaryColor: "#0f172a",
+      secondaryColor: "#2563eb",
+      maxUsers: 50,
+      maxAssets: 500,
+    },
+  });
+
+  // Crear sede principal
+  const site = await db.site.upsert({
+    where: { code: "SEDE-001" },
+    update: {},
+    create: {
+      organizationId: organization.id,
+      name: "Sede Principal",
+      code: "SEDE-001",
+      address: "Calle Principal #123",
+      phone: "+57 1 555-1234",
+      email: "sede.principal@hospitaldemo.local",
+    },
+  });
+
   const admin = await db.user.upsert({
     where: { email: "admin@hospital.local" },
     update: {},
     create: {
+      organizationId: organization.id,
+      siteId: site.id,
       name: "Administrador CMMS",
       email: "admin@hospital.local",
       passwordHash,
@@ -21,6 +55,8 @@ async function main() {
     where: { email: "jefe.mantenimiento@hospital.local" },
     update: {},
     create: {
+      organizationId: organization.id,
+      siteId: site.id,
       name: "Jefe de Mantenimiento",
       email: "jefe.mantenimiento@hospital.local",
       passwordHash,
@@ -32,6 +68,8 @@ async function main() {
     where: { email: "tecnico@hospital.local" },
     update: {},
     create: {
+      organizationId: organization.id,
+      siteId: site.id,
       name: "Técnico de Mantenimiento",
       email: "tecnico@hospital.local",
       passwordHash,
@@ -43,6 +81,8 @@ async function main() {
     where: { code: "EQ-001" },
     update: {},
     create: {
+      organizationId: organization.id,
+      siteId: site.id,
       code: "EQ-001",
       name: "Planta eléctrica de emergencia",
       category: "Infraestructura",
@@ -59,6 +99,8 @@ async function main() {
     where: { code: "EQ-002" },
     update: {},
     create: {
+      organizationId: organization.id,
+      siteId: site.id,
       code: "EQ-002",
       name: "Autoclave central de esterilización",
       category: "Equipo médico",
@@ -75,6 +117,8 @@ async function main() {
     where: { code: "EQ-003" },
     update: {},
     create: {
+      organizationId: organization.id,
+      siteId: site.id,
       code: "EQ-003",
       name: "Bomba de infusión volumétrica",
       category: "Equipo médico",
@@ -91,6 +135,8 @@ async function main() {
     where: { code: "EQ-004" },
     update: {},
     create: {
+      organizationId: organization.id,
+      siteId: site.id,
       code: "EQ-004",
       name: "Aire acondicionado de precisión - Quirófano 2",
       category: "Infraestructura",
@@ -107,6 +153,8 @@ async function main() {
     where: { code: "REP-001" },
     update: {},
     create: {
+      organizationId: organization.id,
+      siteId: site.id,
       code: "REP-001",
       name: "Filtro bacteriológico para autoclave",
       unit: "unidad",
@@ -122,6 +170,8 @@ async function main() {
     where: { code: "REP-002" },
     update: {},
     create: {
+      organizationId: organization.id,
+      siteId: site.id,
       code: "REP-002",
       name: "Filtro de aire HEPA",
       unit: "unidad",
@@ -137,6 +187,8 @@ async function main() {
     where: { code: "REP-003" },
     update: {},
     create: {
+      organizationId: organization.id,
+      siteId: site.id,
       code: "REP-003",
       name: "Aceite lubricante para planta eléctrica",
       unit: "litro",
@@ -196,6 +248,8 @@ async function main() {
     existingWo ??
     (await db.workOrder.create({
       data: {
+        organizationId: organization.id,
+        siteId: site.id,
         code: "OT-2026-0001",
         assetId: bombaInfusion.id,
         type: "CORRECTIVE",

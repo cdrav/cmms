@@ -4,6 +4,7 @@ import { can, type Resource } from "@/lib/permissions";
 import { getInstitutionSettings } from "@/lib/settings";
 import { darkenHex } from "@/lib/color";
 import { logoutAction } from "./actions";
+import NotificationBell from "@/components/notification-bell";
 
 const ROLE_LABEL: Record<string, string> = {
   ADMIN: "Administrador",
@@ -18,6 +19,10 @@ const NAV_ITEMS: { href: string; label: string; resource: Resource }[] = [
   { href: "/pm-schedules", label: "Mant. preventivo", resource: "pmSchedule" },
   { href: "/inventory", label: "Inventario", resource: "inventory" },
   { href: "/purchase-requests", label: "Compras", resource: "purchaseRequest" },
+  { href: "/vendors", label: "Proveedores", resource: "vendor" },
+  { href: "/contracts", label: "Contratos", resource: "contract" },
+  { href: "/warranties", label: "Garantías", resource: "warranty" },
+  { href: "/tickets", label: "Tickets", resource: "ticket" },
   { href: "/tasks", label: "Tareas", resource: "task" },
   { href: "/reports", label: "Reportes", resource: "report" },
   { href: "/adverse-events", label: "Tecnovigilancia", resource: "adverseEvent" },
@@ -62,8 +67,13 @@ export default async function DashboardLayout({
           ))}
         </nav>
         <div className="border-t border-slate-200 p-3">
-          <p className="truncate text-sm font-medium text-slate-900">{user.name}</p>
-          <p className="text-xs text-slate-500">{ROLE_LABEL[user.role] ?? user.role}</p>
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <p className="truncate text-sm font-medium text-slate-900">{user.name}</p>
+              <p className="text-xs text-slate-500">{ROLE_LABEL[user.role] ?? user.role}</p>
+            </div>
+            <NotificationBell />
+          </div>
           <form action={logoutAction}>
             <button
               type="submit"

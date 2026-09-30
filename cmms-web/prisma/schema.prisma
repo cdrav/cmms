@@ -139,14 +139,111 @@ enum AdverseEventStatus {
   CERRADO
 }
 
+// Sistema de notificaciones
+enum NotificationType {
+  WORK_ORDER_ASSIGNED
+  WORK_ORDER_COMPLETED
+  WORK_ORDER_OVERDUE
+  PM_DUE
+  WARRANTY_EXPIRING
+  CONTRACT_EXPIRING
+  INVENTORY_LOW_STOCK
+  TICKET_ASSIGNED
+  TICKET_OVERDUE
+  ADVERSE_EVENT_REPORTED
+  ASSET_DOWN
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+  ARCHIVED
+}
+
+// Notificaciones in-app para usuarios
+model Notification {
+  id              String   @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type            NotificationType
+  title           String
+  message         String
+  link            String?  // URL a la que redirige al hacer clic
+  status          NotificationStatus @default(UNREAD)
+  metadata        String?  // JSON con datos adicionales (ej: workOrderId, assetId)
+  createdAt       DateTime @default(now())
+  readAt          DateTime?
+}
+
+// Multi-tenant: Organización (hospital, clínica, entidad)
+model Organization {
+  id              String   @id @default(cuid())
+  name            String
+  taxId           String   @unique // NIT / identificación tributaria
+  logoDataUrl     String?
+  primaryColor    String   @default("#0f172a")
+  secondaryColor  String   @default("#2563eb")
+  address         String?
+  phone           String?
+  email           String?
+  healthRegistryCode String? // ej. código REPS en Colombia
+  active          Boolean  @default(true)
+  maxUsers        Int?     // límite de usuarios según plan
+  maxAssets       Int?     // límite de activos según plan
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  users              User[]
+  sites              Site[]
+  assets             Asset[]
+  vendors            Vendor[]
+  contracts          MaintenanceContract[]
+  warranties         Warranty[]
+  tickets            Ticket[]
+  projects           MaintenanceProject[]
+  slas               SLA[]
+  attachments        Attachment[]
+  workOrders         WorkOrder[]
+  inventory          InventoryItem[]
+  purchaseOrders     PurchaseOrder[]
+  calibrationRecords CalibrationRecord[]
+  notifications      Notification[]
+}
+
+// Multi-sede: Una organización puede tener múltiples sedes
+model Site {
+  id              String   @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name            String
+  code            String   @unique
+  address         String?
+  phone           String?
+  email           String?
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  assets      Asset[]
+  workOrders  WorkOrder[]
+  inventory   InventoryItem[]
+  users       User[]
+}
+
 model User {
-  id           String   @id @default(cuid())
-  name         String
-  email        String   @unique
-  passwordHash String
-  role         Role
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  id              String   @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  siteId          String?
+  site            Site?    @relation(fields: [siteId], references: [id])
+  name            String
+  email           String   @unique
+  passwordHash    String
+  role            Role
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
 
   requestedWorkOrders WorkOrder[]          @relation("RequestedBy")
   assignedWorkOrders  WorkOrder[]          @relation("AssignedTo")
@@ -159,10 +256,21 @@ model User {
   tasksAssigned       Task[]               @relation("TaskAssignedTo")
   purchaseRequestsMade     PurchaseRequest[] @relation("PurchaseRequestedBy")
   purchaseRequestsReviewed PurchaseRequest[] @relation("PurchaseReviewedBy")
+  ticketsCreated     Ticket[]              @relation("TicketCreatedBy")
+  ticketsAssigned    Ticket[]              @relation("TicketAssignedTo")
+  certifications     TechnicianCertification[]
+  trainingRecords    TrainingRecord[]
+  projectTasks       ProjectTask[]
+  managedProjects    MaintenanceProject[]
+  notifications      Notification[]
 }
 
 model Asset {
   id                String      @id @default(cuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  siteId            String?
+  site              Site?      @relation(fields: [siteId], references: [id])
   code              String      @unique
   name              String
   category          String?
@@ -194,10 +302,17 @@ model Asset {
   calibrationRecords CalibrationRecord[]
   attachments        Attachment[]
   adverseEvents      AdverseEventCase[]
+  warranties         Warranty[]
+  riskAssessments    RiskAssessment[]
+  financial          AssetFinancial?
+  tickets            Ticket[]
+  contracts          MaintenanceContract[]
 }
 
 model CalibrationRecord {
   id          String   @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   assetId     String
   asset       Asset    @relation(fields: [assetId], references: [id])
   performedAt DateTime
@@ -212,6 +327,8 @@ model CalibrationRecord {
 
 model Attachment {
   id           String   @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   filename     String // nombre en disco (storage/uploads/<filename>)
   originalName String
   mimeType     String
@@ -249,11 +366,21 @@ model PmSchedule {
 
 model WorkOrder {
   id             String          @id @default(cuid())
+  organizationId  String
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  siteId          String?
+  site            Site?           @relation(fields: [siteId], references: [id])
   code           String          @unique
   assetId        String
   asset          Asset           @relation(fields: [assetId], references: [id])
   pmScheduleId   String?
   pmSchedule     PmSchedule?     @relation(fields: [pmScheduleId], references: [id])
+  contractId     String?
+  contract       MaintenanceContract? @relation(fields: [contractId], references: [id])
+  ticketId       String?   @unique
+  ticket         Ticket?         @relation("TicketWorkOrder", fields: [ticketId], references: [id])
+  projectId      String?
+  project        MaintenanceProject? @relation(fields: [projectId], references: [id])
   type           WorkOrderType
   priority       Criticality     @default(MEDIUM)
   status         WorkOrderStatus @default(REQUESTED)
@@ -337,6 +464,10 @@ model WorkOrderPart {
 
 model InventoryItem {
   id              String   @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  siteId          String?
+  site            Site?    @relation(fields: [siteId], references: [id])
   code            String   @unique
   name            String
   unit            String
@@ -465,4 +596,326 @@ model InstitutionSettings {
   primaryColor    String   @default("#0f172a")
   secondaryColor  String   @default("#2563eb")
   updatedAt       DateTime @updatedAt
+}
+
+// ============= NUEVOS MODELOS PARA MEJORAS COMERCIALES =============
+
+// Proveedores/Contratistas
+model Vendor {
+  id              String   @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name            String
+  taxId           String?
+  contactPerson   String?
+  email           String?
+  phone           String?
+  address         String?
+  rating          Float?   // evaluación del proveedor (1-5)
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  contracts       MaintenanceContract[]
+  warranties      Warranty[]
+  purchaseOrders  PurchaseOrder[]
+}
+
+// Contratos de mantenimiento con proveedores externos
+model MaintenanceContract {
+  id              String   @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vendorId        String
+  vendor          Vendor   @relation(fields: [vendorId], references: [id])
+  contractNumber  String   @unique
+  name            String
+  startDate       DateTime
+  endDate         DateTime
+  contractValue   Float?
+  scope           String?  // alcance del contrato
+  responseTimeSla Int?     // SLA en horas
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  assets          Asset[]
+  workOrders      WorkOrder[]
+}
+
+// Garantías avanzadas
+model Warranty {
+  id              String   @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assetId         String
+  asset           Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  vendorId        String?
+  vendor          Vendor?  @relation(fields: [vendorId], references: [id])
+  warrantyType    WarrantyType
+  startDate       DateTime
+  endDate         DateTime
+  coverageDetails String?
+  contractNumber  String?
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  claims          WarrantyClaim[]
+}
+
+enum WarrantyType {
+  MANUFACTURER
+  EXTENDED
+  VENDOR
+  SERVICE_CONTRACT
+}
+
+// Reclamaciones de garantía
+model WarrantyClaim {
+  id              String   @id @default(cuid())
+  warrantyId      String
+  warranty        Warranty @relation(fields: [warrantyId], references: [id], onDelete: Cascade)
+  claimDate       DateTime
+  description     String
+  status          ClaimStatus
+  resolution      String?
+  resolvedAt      DateTime?
+  costSaved       Float?   // costo ahorrado por estar en garantía
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+enum ClaimStatus {
+  SUBMITTED
+  APPROVED
+  REJECTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+// Sistema de tickets/helpdesk
+model Ticket {
+  id              String   @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ticketNumber    String   @unique
+  requesterId     String
+  requester       User     @relation("TicketCreatedBy", fields: [requesterId], references: [id])
+  assignedToId    String?
+  assignedTo      User?    @relation("TicketAssignedTo", fields: [assignedToId], references: [id])
+  assetId         String?
+  asset           Asset?   @relation(fields: [assetId], references: [id])
+  subject         String
+  description     String
+  priority        Criticality @default(MEDIUM)
+  status          TicketStatus @default(OPEN)
+  category        String?
+  location        String?
+  workOrderId     String?  // si se convierte en OT
+  workOrder       WorkOrder? @relation("TicketWorkOrder")
+  dueDate         DateTime?
+  resolvedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+enum TicketStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+  ESCALATED
+}
+
+// Proyectos de mantenimiento
+model MaintenanceProject {
+  id              String   @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  startDate       DateTime
+  endDate         DateTime
+  budget          Float?
+  managerId       String
+  manager         User     @relation(fields: [managerId], references: [id])
+  status          ProjectStatus @default(PLANNING)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  workOrders      WorkOrder[]
+  tasks           ProjectTask[]
+}
+
+enum ProjectStatus {
+  PLANNING
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+model ProjectTask {
+  id              String   @id @default(cuid())
+  projectId       String
+  project         MaintenanceProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  dueDate         DateTime?
+  completedAt     DateTime?
+  assignedToId    String?
+  assignedTo      User?    @relation(fields: [assignedToId], references: [id])
+  status          TaskStatus @default(PENDING)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// SLA Management
+model SLA {
+  id              String   @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name            String
+  assetCategoryId String?
+  contractId      String?
+  responseTime    Int      // minutos
+  resolutionTime  Int      // minutos
+  availability    Float?   // % (ej. 99.5)
+  penaltyClause   String?
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Gestión financiera de activos
+model AssetFinancial {
+  id              String   @id @default(cuid())
+  assetId         String   @unique
+  asset           Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  purchaseCost    Float
+  purchaseDate    DateTime
+  salvageValue    Float?
+  usefulLifeYears Int?
+  depreciationMethod DepreciationMethod @default(STRAIGHT_LINE)
+  currentValue    Float?
+  maintenanceCostAccumulated Float @default(0)
+  replacementCost Float?
+  replacementDate DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+enum DepreciationMethod {
+  STRAIGHT_LINE
+  DECLINING_BALANCE
+  UNITS_OF_PRODUCTION
+}
+
+// Certificaciones técnicas
+model TechnicianCertification {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  certificationName String
+  issuer          String?
+  issuedDate      DateTime
+  expiryDate      DateTime?
+  documentUrl     String?
+  skills          String?  // habilidades certificadas (JSON string para SQLite)
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Registros de capacitación
+model TrainingRecord {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trainingName    String
+  trainingType    TrainingType
+  completedAt     DateTime
+  hours           Float
+  certificateUrl  String?
+  createdAt       DateTime @default(now())
+}
+
+enum TrainingType {
+  INTERNAL
+  EXTERNAL
+  ONLINE
+  ON_SITE
+  CERTIFICATION
+}
+
+// Gestión de riesgos
+model RiskAssessment {
+  id              String   @id @default(cuid())
+  assetId         String
+  asset           Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  riskType        RiskType
+  likelihood      RiskLevel
+  impact          RiskLevel
+  mitigationPlan  String?
+  owner           String?
+  reviewDate      DateTime?
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+enum RiskType {
+  EQUIPMENT_FAILURE
+  SAFETY
+  REGULATORY
+  FINANCIAL
+  OPERATIONAL
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+// Órdenes de compra a proveedores
+model PurchaseOrder {
+  id              String   @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vendorId        String
+  vendor          Vendor   @relation(fields: [vendorId], references: [id])
+  orderNumber     String   @unique
+  orderDate       DateTime
+  expectedDate    DateTime?
+  status          PurchaseOrderStatus @default(DRAFT)
+  totalAmount     Float?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  items           PurchaseOrderItem[]
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  SENT
+  ACKNOWLEDGED
+  PARTIAL_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+model PurchaseOrderItem {
+  id              String   @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  description     String
+  quantity        Float
+  unitPrice       Float?
+  totalPrice      Float?
+  receivedQty     Float     @default(0)
 }

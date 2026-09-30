@@ -1,31 +1,101 @@
-# CMMS Hospitalario
+# CMMS Hospitalario Enterprise
 
-Sistema de gestión de mantenimiento (CMMS) para equipos e infraestructura hospitalaria: equipos/activos, órdenes de trabajo, mantenimiento preventivo programado e inventario de repuestos.
+Sistema de gestión de mantenimiento (CMMS) empresarial para entidades hospitalarias, con arquitectura multi-tenant y características avanzadas para distribución comercial.
 
-Reconstrucción moderna (Next.js + Prisma) del proyecto original en Rails (`../CMMS`), que quedó abandonado en 2013. Se conserva ese proyecto solo como referencia histórica del modelo de datos.
+## 🚀 Características Enterprise
 
-## Stack
+### Multi-Tenant / Multi-Sede
+- **Arquitectura multi-tenant**: Un solo despliegue sirve a múltiples hospitales/entidades
+- **Gestión de sedes**: Las organizaciones pueden tener múltiples sedes con aislamiento de datos
+- **Aislamiento de datos**: Garantía de que cada organización solo accede a sus propios datos
+- **Personalización por organización**: Logo, colores, datos institucionales
 
-- **Next.js 16 (App Router) + TypeScript** — UI y backend en un solo proyecto.
-- **Prisma 6 + SQLite** — un solo archivo de base de datos (`prisma/dev.db`), sin servicio de BD que instalar. Para escalar a multi-sede o más concurrencia, cambiar `provider` a `postgresql` en `prisma/schema.prisma` y ajustar `DATABASE_URL`.
-- **Auth propia**: cookie httpOnly firmada con JWT (`jose`) + contraseñas con `bcryptjs`. Sin login social ni SSO (fuera de alcance del piloto).
-- **Tailwind CSS**, **Zod** para validación.
+### Gestión de Contratos
+- **Contratos con proveedores**: Gestión integral de contratos de mantenimiento externo
+- **SLA management**: Definición y seguimiento de acuerdos de nivel de servicio
+- **Asignación de equipos**: Vinculación de contratos a equipos específicos
+- **Generación de OTs**: Órdenes de trabajo automáticas según contrato
+- **Evaluación de proveedores**: Sistema de calificación y ranking
 
-## Requisitos
+### Garantías Avanzadas
+- **Tipos de garantía**: Fabricante, extendida, proveedor, contrato de servicio
+- **Alertas de vencimiento**: Notificaciones automáticas antes de vencer garantías
+- **Reclamaciones**: Sistema completo de gestión de reclamaciones de garantía
+- **Ahorros tracked**: Registro de costos ahorrados por reclamaciones exitosas
+- **Dashboard de garantías**: Vista consolidada de garantías activas, vencidas y por vencer
 
+### Sistema de Tickets
+- **Portal de autoservicio**: Personal clínico puede solicitar mantenimiento directamente
+- **Flujo de estados**: OPEN → ASSIGNED → IN_PROGRESS → RESOLVED → CLOSED
+- **Escalado automático**: Sistema de escalado por SLA
+- **Conversión a OT**: Los tickets pueden convertirse en órdenes de trabajo formales
+- **Alertas de vencimiento**: Notificaciones de tickets vencidos
+
+### Notificaciones
+- **Notificaciones in-app**: Centro de notificaciones en tiempo real
+- **Multiple canales**: Email, in-app, SMS (extensible)
+- **Eventos configurables**: OTs asignadas, PMs vencidos, garantías por expirar, etc.
+- **Historial de notificaciones**: Registro completo de todas las notificaciones
+- **Mark as read**: Sistema de lectura y archivado
+
+### Stack Tecnológico
+
+- **Next.js 16 (App Router) + TypeScript** - UI y backend en un solo proyecto
+- **Prisma 6 + SQLite** - Base de datos (fácil migración a PostgreSQL)
+- **Auth propia** - Cookie httpOnly firmada con JWT + bcryptjs
+- **Tailwind CSS** - Estilos modernos y responsivos
+- **Zod** - Validación de datos
+- **Docker + Docker Compose** - Despliegue simplificado
+
+## 📦 Instalación
+
+### Requisitos
 - Node.js 20+
+- Docker y Docker Compose (para despliegue en producción)
 
-## Poner en marcha (desarrollo)
+### Desarrollo
 
 ```bash
+# Clonar el repositorio
+git clone <repo-url>
+cd cmms-web
+
+# Instalar dependencias
 npm install
-cp .env.example .env   # si no existe .env, o edita el .env ya generado
+
+# Configurar variables de entorno
+cp .env.example .env
+# Editar .env con tus valores
+
+# Migrar base de datos
 npx prisma migrate dev
+
+# Sembrar datos de prueba
 npm run db:seed
+
+# Iniciar servidor de desarrollo
 npm run dev
 ```
 
-Abre http://localhost:3000. Usuarios de prueba creados por el seed (cambiar la contraseña en producción):
+Abre http://localhost:3000
+
+### Producción con Docker
+
+```bash
+# Configurar variables de entorno
+cp .env.example .env
+# Editar .env con valores de producción
+
+# Ejecutar script de despliegue
+chmod +x scripts/deploy.sh
+./scripts/deploy.sh
+
+# O manualmente:
+docker-compose build
+docker-compose up -d
+```
+
+## 👥 Usuarios de Prueba
 
 | Rol | Correo | Contraseña |
 |---|---|---|
@@ -33,69 +103,174 @@ Abre http://localhost:3000. Usuarios de prueba creados por el seed (cambiar la c
 | Jefe de mantenimiento | jefe.mantenimiento@hospital.local | Cambiar123! |
 | Técnico | tecnico@hospital.local | Cambiar123! |
 
-## Módulos (v1)
+## 🏢 Gestión Multi-Tenant
 
-- **Equipos** (`/assets`): inventario de activos, jerarquía padre-hijo, ficha técnica, historial de órdenes de trabajo.
-- **Órdenes de trabajo** (`/work-orders`): solicitud, aprobación/asignación, flujo de estados (`REQUESTED → IN_PROGRESS → WAITING_PARTS/COMPLETED → CLOSED`, o `REJECTED`), auditoría completa de cada cambio de estado, registro de repuestos consumidos (descuenta inventario automáticamente).
-- **Mantenimiento preventivo** (`/pm-schedules`): programas recurrentes por frecuencia en días, indicador de vencidos, botón para generar la orden de trabajo correspondiente.
-- **Inventario** (`/inventory`): repuestos/insumos, punto de reorden, historial de movimientos (entradas, salidas, ajustes).
-- **Usuarios** (`/users`, solo Administrador): alta de personal con rol (Administrador, Jefe de mantenimiento, Técnico).
-- **Reportes** (`/reports`): órdenes por estado/tipo, historial y costo de materiales por equipo.
-- **Calibración** (dentro de la ficha del equipo): frecuencia de calibración, próximo vencimiento, historial de calibraciones con certificado adjunto. Solo aparece en equipos donde se definió una frecuencia.
-- **Adjuntos**: manuales, fotos, garantías y certificados en equipos, órdenes de trabajo y registros de calibración. Se guardan en `storage/uploads/` (fuera de `public/`) y solo se sirven a usuarios con sesión iniciada vía `/api/attachments/[id]`.
-- **Código QR por equipo**: botón "Etiqueta QR" en la ficha del equipo (`/print/assets/[id]`) — genera una etiqueta imprimible que al escanearla lleva directo a la ficha del equipo. Un middleware (`src/proxy.ts`) preserva ese destino si hay que iniciar sesión primero.
-- **RIF (Relative Importance Factor)**: cada orden de trabajo muestra `RIF = Prioridad × Criticidad del equipo`; el listado de OTs y el panel ordenan el backlog abierto por ese valor en vez de solo por fecha o prioridad.
-- **Checklist y mediciones en la OT**: actividades tipo checkbox (con sugerencias como "Verificar Accesorios", "Pruebas Eléctricas", "Limpieza") y mediciones cuantitativas (variable, valor de referencia vs. valor medido) — reemplaza el texto libre para dejar evidencia estructurada de lo que realmente se hizo.
-- **Firma digital en la OT**: captura de firma dibujada a mano (canvas, `src/components/signature-pad.tsx`) de quien entrega el trabajo y de quien lo recibe conforme, con nombre y cargo — trazabilidad de responsabilidad.
-- **PDF de la orden de trabajo**: botón "Descargar PDF" en cada OT (`/api/work-orders/[id]/pdf`), con logo y colores propios del hospital configurables en `/settings` (solo Administrador).
-- **Tecnovigilancia** (`/adverse-events`): registro de eventos e incidentes adversos de dispositivos médicos (tipo de evento, momento, causa probable, desenlace, notificación al distribuidor). Deliberadamente **no** guarda el nombre del paciente — solo datos demográficos mínimos (tipo de documento, sexo, edad). Revisar con el área legal/de calidad del hospital el marco regulatorio aplicable (tipo INVIMA u homólogo) antes de usarlo con casos reales.
-- **Gráficos en el panel**: barras (estado de equipos) y donas de progreso (mantenimientos preventivos y calibraciones, programados vs. realizados en el año), en SVG propio sin librería externa.
-- **Tiempo de respuesta promedio**: tiempo entre solicitud y cierre de órdenes correctivas/de emergencia, mostrado en el panel.
-- **Análisis de obsolescencia** (`/reports`): heurística explícita (no IA) que marca equipos candidatos a evaluación de reemplazo por antigüedad, frecuencia de correctivos en los últimos 12 meses, o costo de mantenimiento acumulado frente al valor de compra (`purchaseCost` en la ficha del equipo). Ver `src/lib/obsolescence.ts` para ajustar los umbrales.
-- **Ficha institucional ampliada** (`/settings`): NIT, dirección, teléfono, email y código de registro sanitario (ej. REPS), además del logo/colores de PDF — esos datos también aparecen en el pie del PDF de cada OT.
-- **Tipo de documento en adjuntos**: al subir un archivo a un equipo, se puede clasificar (Manual de Usuario, Factura, Registro Sanitario, Acta de Entrega, Contrato, etc.); los certificados de calibración se etiquetan automáticamente.
-- **Programación mensual** (`/pm-schedules/calendar`): calendario mes por mes con los mantenimientos preventivos y calibraciones pendientes, navegable entre meses. Se basa en la próxima fecha de vencimiento de cada programa (no expande recurrencias futuras más allá del ciclo pendiente actual).
-- **Tareas** (`/tasks`): pendientes del equipo de mantenimiento no atados a un equipo específico (ej. "hacer ronda de inspección"), con responsable, fecha límite y estado.
-- **Solicitudes de compra** (`/purchase-requests`): compra **interna** de repuestos o equipos — sin marketplace externo. Alguien solicita con justificación e ítems (cantidad, costo estimado), un Jefe/Admin aprueba o rechaza; al marcarla "Recibida", si el ítem estaba vinculado a un repuesto existente, el stock se suma automáticamente vía una transacción de inventario. Desde la ficha de un repuesto con stock bajo hay un botón "Solicitar reposición" que prellena la solicitud.
-- **Colores de marca dinámicos**: el color primario/secundario configurado en `/settings` se aplica en vivo a toda la app (sidebar, botones, login) vía variables CSS (`src/lib/color.ts` calcula el tono de `:hover` automáticamente) — no hay que tocar código para adaptar la app a los colores de cada institución.
-- **Tarjeta de perfil institucional**: destacada en la parte superior del panel — logo (o iniciales si aún no se sube uno) en círculo, nombre, sede, NIT, dirección, email, teléfono y código de registro sanitario, con franja de color de marca arriba.
+### Crear Nueva Organización
 
-## Roles y permisos
-
-Definidos en `src/lib/permissions.ts`:
-
-- **ADMIN**: acceso total, incluida gestión de usuarios y configuración institucional (logo/colores de PDF).
-- **MANAGER**: gestiona equipos, PM, inventario, órdenes de trabajo y casos de tecnovigilancia; no gestiona usuarios ni configuración.
-- **TECHNICIAN**: ve todo en modo lectura, puede solicitar y avanzar sus propias órdenes de trabajo, registrar consumo de repuestos, y reportar (pero no editar/cerrar) casos de tecnovigilancia.
-
-## Generación automática de órdenes desde PM
-
-El listado de mantenimiento preventivo calcula "vencido" al vuelo comparando `nextDueAt` con la fecha actual, con un botón manual para generar la orden de trabajo. Si más adelante quieres automatizarlo sin intervención manual, hay un script standalone:
-
-```bash
-npm run pm:generate
+```typescript
+const organization = await db.organization.create({
+  data: {
+    name: "Hospital Nuevo",
+    taxId: "900123456-2",
+    address: "Dirección del hospital",
+    phone: "+57 1 555-5678",
+    email: "contacto@hospitalnuevo.local",
+    healthRegistryCode: "REPS-67890",
+    primaryColor: "#0f172a",
+    secondaryColor: "#2563eb",
+    maxUsers: 100,
+    maxAssets: 1000,
+  },
+});
 ```
 
-Prográmalo con el **Programador de Tareas de Windows** (o cron en Linux) para que corra, por ejemplo, todas las mañanas. Por defecto atribuye las órdenes generadas al primer usuario `ADMIN` activo; para usar otro usuario, define la variable de entorno `PM_SYSTEM_USER_EMAIL`.
+### Crear Sede
 
-## Despliegue on-premise (servidor del hospital)
+```typescript
+const site = await db.site.create({
+  data: {
+    organizationId: organization.id,
+    name: "Sede Norte",
+    code: "SEDE-002",
+    address: "Dirección de la sede",
+    phone: "+57 1 555-9999",
+  },
+});
+```
 
-1. Copiar el proyecto completo al servidor (no solo `.next`; Prisma con SQLite necesita el motor de consultas y la carpeta `prisma/`).
-2. `npm ci --omit=dev` seguido de `npm install prisma --no-save && npx prisma migrate deploy` (aplica migraciones sin generar una nueva).
-3. `npm run build`
-4. Configurar `.env` en el servidor con un `SESSION_SECRET` largo y aleatorio distinto al de desarrollo, y `DATABASE_URL` apuntando a la ruta definitiva del archivo SQLite.
-5. Crear la carpeta `storage/uploads/` (o dejar que se cree sola en el primer adjunto) e incluirla en el respaldo periódico junto con el archivo SQLite — ahí viven los documentos y certificados subidos.
-6. Ejecutar como servicio en vez de `npm start` directo, para que sobreviva reinicios:
-   - **Windows**: usar [NSSM](https://nssm.cc/) para registrar `npm start` como servicio de Windows, o [PM2](https://pm2.keymetrics.io/) con `pm2-windows-startup`.
-   - **Linux**: `pm2 start npm --name cmms -- start` o una unidad `systemd`.
-7. Poner un reverse proxy (IIS con URL Rewrite, o nginx) delante para servir con HTTPS usando el certificado interno del hospital.
-8. **Backups**: el archivo `prisma/dev.db` (SQLite) es toda la base de datos. Incluirlo en el respaldo periódico del servidor; considerar copiarlo a otra ubicación mientras la app está detenida, o usar `sqlite3 dev.db ".backup respaldo.db"` para un backup en caliente.
+## 🔔 Sistema de Notificaciones
 
-## Seguridad — pendiente antes de producción real
+### Crear Notificación
 
-Este es un piloto. Antes de usarlo con datos reales del hospital de forma sostenida:
+```typescript
+import { createNotification } from "@/lib/notifications";
 
-- Cambiar las contraseñas de los usuarios de ejemplo y `SESSION_SECRET`.
-- Servir siempre bajo HTTPS (la cookie de sesión se marca `secure` en producción, lo que requiere HTTPS para funcionar).
-- Revisar con TI del hospital si aplica alguna normativa local de protección de datos a la información que se registrará (ubicación de equipos médicos, nombres de personal, etc.).
-- Definir una política de respaldo probada (no solo copiar el archivo, sino restaurarlo alguna vez de prueba).
+await createNotification({
+  userId: user.id,
+  type: "WORK_ORDER_ASSIGNED",
+  title: "Nueva orden de trabajo asignada",
+  message: "Se te ha asignado la orden OT-2026-0001",
+  link: "/work-orders/OT-2026-0001",
+  metadata: { workOrderId: "wo-id" },
+});
+```
+
+### Tipos de Notificaciones
+
+- `WORK_ORDER_ASSIGNED` - OT asignada a usuario
+- `WORK_ORDER_COMPLETED` - OT completada
+- `WORK_ORDER_OVERDUE` - OT vencida
+- `PM_DUE` - Mantenimiento preventivo vencido
+- `WARRANTY_EXPIRING` - Garantía por vencer
+- `CONTRACT_EXPIRING` - Contrato por vencer
+- `INVENTORY_LOW_STOCK` - Stock bajo
+- `TICKET_ASSIGNED` - Ticket asignado
+- `TICKET_OVERDUE` - Ticket vencido
+- `ADVERSE_EVENT_REPORTED` - Evento adverso reportado
+- `ASSET_DOWN` - Equipo fuera de servicio
+
+## 🐳 Docker y Despliegue
+
+### Variables de Entorno
+
+```env
+NODE_ENV=production
+DATABASE_URL=file:./prisma/dev.db
+SESSION_SECRET=tu-secret-key-largo-y-aleatorio
+```
+
+### Comandos Docker
+
+```bash
+# Construir imagen
+docker-compose build
+
+# Levantar contenedores
+docker-compose up -d
+
+# Ver logs
+docker-compose logs -f
+
+# Detener contenedores
+docker-compose down
+
+# Reiniciar
+docker-compose restart
+```
+
+### Backups
+
+```bash
+# Backup de base de datos
+docker-compose exec cmms cp prisma/dev.db /tmp/backup.db
+docker cp cmms:/tmp/backup.db ./backup-$(date +%Y%m%d).db
+
+# Backup de storage (archivos subidos)
+docker cp cmms:/app/storage ./storage-backup-$(date +%Y%m%d)
+```
+
+## 🔒 Seguridad
+
+### Antes de Producción
+
+- [ ] Cambiar contraseñas de usuarios de prueba
+- [ ] Configurar `SESSION_SECRET` con valor largo y aleatorio
+- [ ] Servir siempre bajo HTTPS
+- [ ] Configurar políticas de respaldo
+- [ ] Revisar normativa local de protección de datos
+- [ ] Configurar firewall y restricciones de IP
+
+### Mejoras de Seguridad Pendientes
+
+- [ ] 2FA (Two-Factor Authentication)
+- [ ] SSO (Single Sign-On) con SAML/OIDC
+- [ ] Auditoría completa de eventos
+- [ ] RBAC granular
+- [ ] Encriptación de datos sensibles
+- [ ] IP whitelisting para acceso administrativo
+
+## 📊 Módulos Disponibles
+
+- ✅ **Equipos** - Inventario, jerarquía, ficha técnica, historial
+- ✅ **Órdenes de Trabajo** - Flujo completo, auditoría, checklist, firma
+- ✅ **Mantenimiento Preventivo** - Programas recurrentes, calendario
+- ✅ **Inventario** - Repuestos, punto de reorden, movimientos
+- ✅ **Proveedores** - Gestión de proveedores y contratistas
+- ✅ **Contratos** - Contratos de mantenimiento externo
+- ✅ **Garantías** - Gestión de garantías y reclamaciones
+- ✅ **Tickets** - Portal de autoservicio para solicitudes
+- ✅ **Tecnovigilancia** - Eventos adversos de dispositivos médicos
+- ✅ **Tareas** - Pendientes generales del equipo
+- ✅ **Solicitudes de Compra** - Compras internas
+- ✅ **Reportes** - Análisis y métricas
+- ✅ **Usuarios** - Gestión de personal
+- ✅ **Configuración** - Personalización institucional
+- ✅ **Notificaciones** - Sistema de alertas en tiempo real
+
+## 🎯 Roadmap
+
+### Próximas Mejoras
+
+- [ ] Dashboard de BI con métricas avanzadas (MTBF, MTTR, costos)
+- [ ] Gestión financiera de activos (depreciación, TCO)
+- [ ] API REST completa con documentación OpenAPI
+- [ ] Testing automatizado (Jest + Playwright)
+- [ ] App móvil para técnicos (React Native)
+- [ ] Integración con sistemas hospitalarios (HL7 FHIR)
+- [ ] Mantenimiento predictivo con IoT
+- [ ] Machine learning para predicción de fallas
+- [ ] Multi-idioma (i18n)
+- [ ] Marketplace de integraciones
+
+## 📄 Licencia
+
+Licencia comercial - Contactar para información de licensing y distribución.
+
+## 📞 Soporte
+
+Para soporte empresarial, contactar a: soporte@cmms-hospitalario.com
+
+---
+
+**Versión**: 2.0.0 Enterprise
+**Última actualización**: Septiembre 2026

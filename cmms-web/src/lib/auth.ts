@@ -23,6 +23,8 @@ export type SessionPayload = {
   userId: string;
   role: Role;
   name: string;
+  organizationId: string;
+  siteId?: string;
 };
 
 export async function hashPassword(password: string) {
@@ -66,6 +68,8 @@ export async function getSession(): Promise<SessionPayload | null> {
       userId: payload.userId as string,
       role: payload.role as Role,
       name: payload.name as string,
+      organizationId: payload.organizationId as string,
+      siteId: payload.siteId as string | undefined,
     };
   } catch {
     return null;
@@ -91,7 +95,13 @@ export async function requireUser() {
 }
 
 export async function authenticate(email: string, password: string) {
-  const user = await db.user.findUnique({ where: { email } });
+  const user = await db.user.findUnique({
+    where: { email },
+    include: {
+      organization: true,
+      site: true,
+    },
+  });
   if (!user || !user.active) return null;
 
   const valid = await verifyPassword(password, user.passwordHash);
